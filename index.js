@@ -10,6 +10,10 @@ import { createLocalJWKSet, jwtVerify } from 'jose';
 import Stripe from 'stripe';
 
 const env = process.env;
+const required = ['MONGODB_URI', 'BETTER_AUTH_SECRET', 'BETTER_AUTH_URL', 'CLIENT_URL'];
+const missing = required.filter(name => !env[name]?.trim());
+if (missing.length) throw new Error('Missing required configuration: ' + missing.join(', '));
+if (env.BETTER_AUTH_SECRET.length < 32) throw new Error('BETTER_AUTH_SECRET must contain at least 32 characters.');
 const client = new MongoClient(env.MONGODB_URI);
 await client.connect();
 const db = client.db(env.MONGODB_DATABASE || 'salonbook');
@@ -92,7 +96,14 @@ const guard = role => async (req, res, next) => {
   req.user = user;
   next();
 };
-app.get('/health', (req, res) => res.json({ ok: true }));
+app.get('/health', async (req, res) => {
+  try {
+    await db.command({ ping: 1 }, { timeoutMS: 2000 });
+    res.json({ ok: true });
+  } catch {
+    res.status(503).json({ ok: false });
+  }
+});
 app.get('/api/services', async (req, res) => {
   const query = { status: 'active' };
   if (typeof req.query.category === 'string' && req.query.category) query.category = req.query.category;
@@ -250,6 +261,7 @@ app.use((err, req, res, next) => {
   res.status(err.status || 500).json({ error: err.status ? err.message : 'Unable to complete the request' });
 });
 app.listen(env.PORT || 4000, () => console.log('SalonBook API ready'));
+
 
 
 
