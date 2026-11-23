@@ -28,3 +28,13 @@ Still to verify: MongoDB, Better Auth session cookies, OAuth, ImgBB, checkout an
 ## Add six starter services
 
 Use the admin dashboard and ImgBB to upload service photos. Alternatively, for initial data setup, set SALONBOOK_SEED_IMAGES to a JSON array of six public HTTPS image URLs you may use. Run node --env-file=.env seed-services.js. The script inserts missing example services and leaves existing records alone.
+
+## Before submitting Assignment 9
+
+1. In the server folder, run node --env-file=.env check-launch.js. This checks configuration names and formats without printing values.
+2. Start the Express server and check GET /health. Deploy Express and Next.js to HTTPS hosts, then register the deployed OAuth callback and Stripe test webhook.
+3. Add six active services with photos and run the client smoke check against the deployed Next.js URL.
+4. With a dedicated customer, sign in, book a free slot and verify it appears as pending and unpaid. Try booking the same slot again and confirm the conflict is handled.
+5. With a dedicated admin, confirm the booking. As the customer, go through Stripe test checkout and verify the webhook changes the booking to paid and shows the transaction in both dashboards. Verify a second customer cannot access the first booking.
+6. Refresh the protected pages as each role. Verify the admin can activate/deactivate services, cancel an eligible booking, and block/unblock a dedicated test customer.
+7. Add the live URL to both READMEs. Submit the live URL, both repository URLs, and the dedicated evaluator admin email and password in the course form.
