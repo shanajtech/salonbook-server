@@ -4,6 +4,7 @@ import { MongoClient, ObjectId } from 'mongodb';
 import { betterAuth } from 'better-auth';
 import { mongodbAdapter } from 'better-auth/adapters/mongodb';
 import { toNodeHandler } from 'better-auth/node';
+import { APIError, createAuthMiddleware } from 'better-auth/api';
 import { jwt, admin } from 'better-auth/plugins';
 import { createLocalJWKSet, jwtVerify } from 'jose';
 import Stripe from 'stripe';
@@ -20,7 +21,15 @@ const auth = betterAuth({
   emailAndPassword: { enabled: true, minPasswordLength: 6 },
   socialProviders: env.GOOGLE_CLIENT_ID ? { google: { clientId: env.GOOGLE_CLIENT_ID, clientSecret: env.GOOGLE_CLIENT_SECRET } } : {},
   plugins: [admin(), jwt()],
-  hooks: {},
+  hooks: {
+    before: createAuthMiddleware(async context => {
+      if (context.path !== '/sign-up/email') return;
+      const password = context.body?.password;
+      if (typeof password !== 'string' || password.length < 6 || !/[A-Z]/.test(password) || !/[a-z]/.test(password)) {
+        throw new APIError('BAD_REQUEST', { message: 'Use at least six characters with uppercase and lowercase letters' });
+      }
+    }),
+  },
 });
 const stripe = env.STRIPE_SECRET_KEY ? new Stripe(env.STRIPE_SECRET_KEY) : null;
 const services = db.collection('services');
