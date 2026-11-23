@@ -10,7 +10,7 @@ Express REST API for salon services, role-based bookings and Stripe Checkout. Us
 6. Configure Stripe test keys and webhook delivery at /api/stripe/webhook. Listen for checkout.session.completed, checkout.session.async_payment_succeeded and checkout.session.async_payment_failed. Enter the endpoint signing secret.
 7. Configure the ImgBB API key before adding services.
 
-Production needs HTTPS, exact configured client and auth origins, and browser-compatible cookie delivery. Host the two apps on same-site HTTPS origins or verify your reverse proxy and cookie setup before evaluation. Create six active services through the admin dashboard. Do not publish secrets or put evaluator passwords in the README.
+In production, set both CLIENT_URL and BETTER_AUTH_URL to the HTTPS Next.js origin. Set SALONBOOK_API_ORIGIN on the Next.js host to the separately deployed Express origin. Register the Google OAuth callback on the public Next.js origin and send Stripe webhooks directly to the Express origin. Keep the default browser API setting relative so session cookies stay on the Next.js origin. Do not publish secrets or put evaluator passwords in the README.
 
 Add live client, client repository and server repository links once deployed.
 
@@ -24,3 +24,7 @@ Implemented: service REST endpoints, MongoDB data operations, Better Auth with J
 
 Still to verify: MongoDB, Better Auth session cookies, OAuth, ImgBB, checkout and webhook delivery with real test configuration. Verify failed payment event recording and cancellation behavior for appointments with existing Stripe sessions. No deployment or evaluator account has been verified. Keep credentials out of GitHub and submit the dedicated test-admin credentials only in the assignment form.
 
+
+## Add six starter services
+
+Use the admin dashboard and ImgBB to upload service photos. Alternatively, for initial data setup, set SALONBOOK_SEED_IMAGES to a JSON array of six public HTTPS image URLs you may use. Run node --env-file=.env seed-services.js. The script inserts missing example services and leaves existing records alone.
