@@ -52,15 +52,20 @@ app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), async
     return res.status(400).json({ error: 'Invalid webhook signature' });
   }
   const session = event.data.object;
-  if (['checkout.session.completed', 'checkout.session.async_payment_succeeded'].includes(event.type) && session.payment_status === 'paid') {
+  const paid = ['checkout.session.completed', 'checkout.session.async_payment_succeeded'].includes(event.type) && session.payment_status === 'paid';
+  const failed = event.type === 'checkout.session.async_payment_failed';
+  if (paid || failed) {
     const ref = session.metadata?.appointmentId;
     const booking = ObjectId.isValid(ref) && await appointments.findOne({ _id: new ObjectId(ref), stripeSessionId: session.id });
     if (booking && session.amount_total === booking.amount && session.currency === booking.currency) {
       await transactions.updateOne({ stripeSessionId: session.id }, { $setOnInsert: {
         appointmentId: booking._id, customerId: booking.customerId, amount: session.amount_total,
-        currency: session.currency, status: 'paid', createdAt: new Date(),
+        currency: session.currency, status: paid ? 'paid' : 'failed', createdAt: new Date(),
       } }, { upsert: true });
-      await appointments.updateOne({ _id: booking._id, stripeSessionId: session.id }, { $set: { paymentStatus: 'paid' } });
+      if (paid) {
+        await transactions.updateOne({ stripeSessionId: session.id }, { $set: { status: 'paid' } });
+        await appointments.updateOne({ _id: booking._id, stripeSessionId: session.id }, { $set: { paymentStatus: 'paid' } });
+      }
     }
   }
   res.sendStatus(200);
@@ -163,9 +168,27 @@ app.patch('/api/admin/appointments/:id', guard('admin'), async (req, res) => {
   const { status } = req.body;
   if (!['confirmed', 'cancelled'].includes(status)) throw fail(400, 'Invalid status');
   const allowed = status === 'confirmed' ? ['pending'] : ['pending', 'confirmed'];
-  const filter = { _id: id(req.params.id), status: { $in: allowed }, stripeSessionId: { $exists: false } };
+  const booking = await appointments.findOne({ _id: id(req.params.id), status: { $in: allowed } });
+  if (!booking) throw fail(409, 'This appointment cannot change to the requested status');
+  if (status === 'cancelled' && booking.stripeSessionId && booking.paymentStatus !== 'paid') {
+    if (!stripe) throw fail(503, 'Checkout is unavailable');
+    const checkout = await stripe.checkout.sessions.retrieve(booking.stripeSessionId);
+    if (checkout.status === 'open') {
+      try { await stripe.checkout.sessions.expire(checkout.id); }
+      catch { throw fail(409, 'Checkout changed. Reload the appointment and try again'); }
+    } else if (checkout.status === 'complete') {
+      const failure = await transactions.findOne({ stripeSessionId: checkout.id, status: 'failed' });
+      if (!failure) throw fail(409, 'Payment is being verified. Try again after the status updates');
+    }
+  }
+  const filter = {
+    _id: booking._id,
+    status: booking.status,
+    paymentStatus: booking.paymentStatus,
+    stripeSessionId: booking.stripeSessionId || { $exists: false },
+  };
   const result = await appointments.updateOne(filter, { $set: { status, occupied: status !== 'cancelled' } });
-  if (!result.matchedCount) throw fail(409, 'Status cannot be changed while checkout is active or completed');
+  if (!result.matchedCount) throw fail(409, 'The appointment changed. Reload and try again');
   res.json({ ok: true });
 });
 app.post('/api/appointments/:id/checkout', guard('user'), async (req, res) => {
@@ -208,6 +231,13 @@ app.patch('/api/admin/users/:id', guard('admin'), async (req, res) => {
   if (!result.matchedCount) throw fail(404, 'User not found');
   res.json({ ok: true });
 });
+app.get('/api/transactions', guard('user'), async (req, res) => res.json(await transactions.aggregate([
+  { $match: { customerId: req.user._id } },
+  { $lookup: { from: 'appointments', localField: 'appointmentId', foreignField: '_id', as: 'appointment' } },
+  { $unwind: { path: '$appointment', preserveNullAndEmptyArrays: true } },
+  { $project: { amount: 1, currency: 1, status: 1, createdAt: 1, 'appointment.serviceName': 1, 'appointment.appointmentDate': 1 } },
+  { $sort: { createdAt: -1 } },
+]).toArray()));
 app.get('/api/admin/transactions', guard('admin'), async (req, res) => res.json(await transactions.aggregate([
   { $lookup: { from: 'appointments', localField: 'appointmentId', foreignField: '_id', as: 'appointment' } },
   { $unwind: { path: '$appointment', preserveNullAndEmptyArrays: true } },
@@ -220,4 +250,7 @@ app.use((err, req, res, next) => {
   res.status(err.status || 500).json({ error: err.status ? err.message : 'Unable to complete the request' });
 });
 app.listen(env.PORT || 4000, () => console.log('SalonBook API ready'));
+
+
+
 
