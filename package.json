@@ -1,0 +1,2 @@
+{"name":"salonbook-server","private":true,"type":"module","scripts":{"start":"node --env-file-if-exists=.env index.js"},"dependencies":{"express":"^5","mongodb":"^6","better-auth":"^1.4","cors":"^2","stripe":"^18","jose":"^6"}}
+
