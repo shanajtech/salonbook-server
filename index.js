@@ -210,8 +210,10 @@ app.post('/api/appointments/:id/checkout', guard('user'), async (req, res) => {
   if (booking.stripeSessionId) {
     const existing = await stripe.checkout.sessions.retrieve(booking.stripeSessionId);
     if (existing.status === 'open') return res.json({ url: existing.url });
-    if (existing.status !== 'expired') throw fail(409, 'Payment is being verified');
-    await appointments.updateOne({ _id: bookingId, stripeSessionId: existing.id }, { $unset: { stripeSessionId: '' } });
+    if (existing.status !== 'expired') {
+      const previous = await transactions.findOne({ stripeSessionId: existing.id, status: 'failed' });
+      if (existing.status !== 'complete' || !previous) throw fail(409, 'Payment is being verified');
+    }
   }
   const currency = env.STRIPE_CURRENCY || 'usd';
   const amount = Math.round(booking.servicePrice * 100);
@@ -222,7 +224,7 @@ app.post('/api/appointments/:id/checkout', guard('user'), async (req, res) => {
     success_url: env.CLIENT_URL + '/payment/success',
     cancel_url: env.CLIENT_URL + '/payment/cancel',
   }, { idempotencyKey: 'salonbook-' + bookingId + '-' + (booking.stripeSessionId || 'initial') });
-  const result = await appointments.updateOne({ _id: bookingId, status: 'confirmed', paymentStatus: 'unpaid', stripeSessionId: { $exists: false } },
+  const result = await appointments.updateOne({ _id: bookingId, status: 'confirmed', paymentStatus: 'unpaid', stripeSessionId: booking.stripeSessionId || { $exists: false } },
     { $set: { stripeSessionId: session.id, currency, amount } });
   if (!result.matchedCount) {
     const current = await appointments.findOne({ _id: bookingId });
@@ -261,6 +263,7 @@ app.use((err, req, res, next) => {
   res.status(err.status || 500).json({ error: err.status ? err.message : 'Unable to complete the request' });
 });
 app.listen(env.PORT || 4000, () => console.log('SalonBook API ready'));
+
 
 
 
