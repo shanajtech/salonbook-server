@@ -23,10 +23,23 @@ const auth = betterAuth({
   trustedOrigins: [env.CLIENT_URL],
   database: mongodbAdapter(db, { client }),
   emailAndPassword: { enabled: true, minPasswordLength: 6 },
-  socialProviders: env.GOOGLE_CLIENT_ID ? { google: { clientId: env.GOOGLE_CLIENT_ID, clientSecret: env.GOOGLE_CLIENT_SECRET } } : {},
+  socialProviders: env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET
+    ? { google: { clientId: env.GOOGLE_CLIENT_ID, clientSecret: env.GOOGLE_CLIENT_SECRET } }
+    : {},
+  user: {
+    additionalFields: {
+      phone: { type: 'string', required: false },
+    },
+  },
   plugins: [admin(), jwt()],
   hooks: {
     before: createAuthMiddleware(async context => {
+      if (context.path === '/update-user' && context.body?.phone !== undefined) {
+        const phone = context.body.phone;
+        if (typeof phone !== 'string' || !/^[+\d ()-]{0,24}$/.test(phone)) {
+          throw new APIError('BAD_REQUEST', { message: 'Enter a valid phone number' });
+        }
+      }
       if (context.path !== '/sign-up/email') return;
       const password = context.body?.password;
       if (typeof password !== 'string' || password.length < 6 || !/[A-Z]/.test(password) || !/[a-z]/.test(password)) {
@@ -103,6 +116,9 @@ app.get('/health', async (req, res) => {
   } catch {
     res.status(503).json({ ok: false });
   }
+});
+app.get('/api/config', (req, res) => {
+  res.json({ googleSignIn: Boolean(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET) });
 });
 app.get('/api/services', async (req, res) => {
   const query = { status: 'active' };
