@@ -14,16 +14,11 @@ In production, set both CLIENT_URL and BETTER_AUTH_URL to the HTTPS Next.js orig
 
 Add live client, client repository and server repository links once deployed.
 
-## Assignment 9 handoff
+## Application links
 
-- Client: https://github.com/shanajtech/salonbook-client
-- Server: https://github.com/shanajtech/salonbook-server
-- Assignment: https://web.programming-hero.com/web-14/assignment/web-14-assignment-9
-
-Implemented: service REST endpoints, MongoDB data operations, Better Auth with JWT role checks, booking conflict protection, admin operations, ImgBB upload, Stripe Checkout and verified paid-event handling.
-
-Still to verify: MongoDB, Better Auth session cookies, OAuth, ImgBB, checkout and webhook delivery with real test configuration. Verify failed payment event recording and cancellation behavior for appointments with existing Stripe sessions. No deployment or evaluator account has been verified. Keep credentials out of GitHub and submit the dedicated test-admin credentials only in the assignment form.
-
+- [Client repository](https://github.com/shanajtech/salonbook-client)
+- [Server repository](https://github.com/shanajtech/salonbook-server)
+- Public deployment pending.
 
 ## Add six starter services
 
